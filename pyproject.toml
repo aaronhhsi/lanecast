@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lanecast"
+version = "0.1.0"
+description = "A social media scheduler that posts through laneq lanes: one ordered line of posts per account, posted on a nightly schedule, never twice."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["Pillow>=10", "pillow-heif>=0.16", "imageio-ffmpeg>=0.5"]
+
+[project.scripts]
+lanecast = "lanecast.cli:main"
+
+[tool.setuptools]
+packages = ["lanecast"]
+
+[tool.setuptools.package-data]
+lanecast = ["web/*"]

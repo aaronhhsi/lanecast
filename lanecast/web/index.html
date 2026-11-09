@@ -1,0 +1,1003 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lanecast</title>
+<style>
+  :root {
+    --bg: #f6f6f4; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6b66; --line: #e4e4df;
+    --accent: #3d5afe; --accent-ink: #ffffff; --ok: #1b7f4b; --warn: #a15c00; --bad: #b3261e;
+    --chip: #efefeb; --shadow: 0 1px 2px rgba(0,0,0,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141413; --panel: #1e1e1c; --ink: #ecece8; --muted: #9b9b94; --line: #2e2e2b;
+      --accent: #8c9eff; --accent-ink: #10132b; --ok: #6fcf97; --warn: #f2b45a; --bad: #f28b82;
+      --chip: #2a2a27; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .topbar { position: sticky; top: 0; z-index: 5; background: var(--panel); border-bottom: 1px solid var(--line); }
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 24px; }
+  header h1 { font-size: 16px; margin: 0; letter-spacing: .02em; }
+  header .grow { flex: 1; }
+  main { max-width: 1440px; margin: 0 auto; padding: 20px 16px 60px; display: grid; gap: 20px; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 20px; align-items: start; }
+  .layout > div { display: grid; gap: 20px; min-width: 0; }
+  .side { position: sticky; top: 112px; max-height: calc(100vh - 132px); overflow-y: auto; }
+  h2 .grow { flex: 1; }
+  /* the sidebar is narrow: put an item's status and buttons under its text */
+  .side .item { grid-template-columns: 56px minmax(0, 1fr); }
+  .side .item > .row { grid-column: 2; }
+  button.toggle[aria-pressed="true"] { background: var(--chip); border-color: var(--muted); }
+  @media (max-width: 980px) {
+    .layout { grid-template-columns: 1fr; }
+    .side { position: static; max-height: none; order: -1; }
+  }
+  section.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); padding: 16px 18px; }
+  h2 { font-size: 15px; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+  h3 { font-size: 13px; margin: 18px 0 8px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+  .muted { color: var(--muted); }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .chip { background: var(--chip); border-radius: 999px; padding: 2px 9px; font-size: 12px; white-space: nowrap; }
+  .chip.ok { color: var(--ok); } .chip.warn { color: var(--warn); } .chip.bad { color: var(--bad); }
+  button { font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 7px; padding: 5px 11px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--muted); }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button.danger { color: var(--bad); }
+  button.icon { padding: 3px 8px; }
+  input[type=time], input[type=number] { font: inherit; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+  .stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .stepper button { border: 0; border-radius: 0; padding: 4px 12px; font-size: 16px; }
+  .stepper output { min-width: 34px; text-align: center; font-weight: 700; font-size: 16px; }
+  .next { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; align-items: center; }
+  .next .when { font-size: 22px; font-weight: 700; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .card { border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--bg); display: flex; flex-direction: column; }
+  .thumb { position: relative; aspect-ratio: 4 / 5; background: var(--chip); cursor: zoom-in; }
+  .thumb img, .thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb .count { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.65); color: #fff; border-radius: 6px; padding: 1px 7px; font-size: 12px; }
+  .thumb .kind { position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,.65); color: #fff; border-radius: 6px; padding: 1px 7px; font-size: 12px; }
+  .thumb .order { position: absolute; top: 8px; left: 8px; background: var(--accent); color: var(--accent-ink); border-radius: 6px; padding: 1px 8px; font-weight: 700; font-size: 12px; }
+  .card .body { padding: 9px 10px; display: grid; gap: 6px; }
+  .card .title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card .actions { display: flex; gap: 6px; }
+  .card .actions .grow { flex: 1; }
+  .list { display: grid; gap: 6px; }
+  .item { display: grid; grid-template-columns: 56px 1fr auto; gap: 12px; align-items: center; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .item .mini { width: 56px; height: 70px; border-radius: 5px; overflow: hidden; background: var(--chip); cursor: zoom-in; }
+  .item .mini img, .item .mini video { width: 100%; height: 100%; object-fit: cover; }
+  .item .meta { min-width: 0; }
+  .item .meta .title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .err { color: var(--bad); font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 4.5em; overflow: auto; }
+  .night { display: grid; grid-template-columns: 110px 1fr; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); align-items: start; }
+  .night .date { font-weight: 600; padding-top: 4px; }
+  .strip { display: flex; gap: 8px; flex-wrap: wrap; }
+  .strip .mini { width: 64px; height: 80px; border-radius: 6px; overflow: hidden; background: var(--chip); cursor: zoom-in; position: relative; }
+  .strip .mini img, .strip .mini video { width: 100%; height: 100%; object-fit: cover; }
+  .empty { color: var(--muted); padding: 8px 0; }
+  .banner { padding: 10px 14px; border-radius: 8px; background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); }
+  dialog { border: 0; border-radius: 12px; padding: 0; max-width: min(960px, 96vw); width: 100%; background: var(--panel); color: var(--ink); }
+  dialog::backdrop { background: rgba(0,0,0,.6); }
+  dialog .top { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  dialog .top .grow { flex: 1; }
+  dialog .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; padding: 14px; max-height: 70vh; overflow: auto; }
+  dialog .gallery img, dialog .gallery video { width: 100%; border-radius: 6px; display: block; }
+  dialog pre { margin: 0 14px 14px; padding: 10px; background: var(--bg); border-radius: 8px; white-space: pre-wrap; font: 13px/1.4 ui-monospace, Consolas, monospace; }
+  .settings { display: none; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+  .settings.open { display: flex; }
+  a { color: var(--accent); }
+  nav.tabs { display: flex; gap: 4px; padding: 0 16px; overflow-x: auto; }
+  nav.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 10px 14px; color: var(--muted); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+  nav.tabs button:hover:not(:disabled) { color: var(--ink); }
+  nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); display: inline-block; }
+  .dot.bad { background: var(--bad); }
+  .checks { display: grid; gap: 8px; }
+  .check { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .check .mark { font-weight: 700; color: var(--muted); text-align: center; }
+  .check.done .mark { color: var(--ok); }
+  .check .row { justify-content: flex-end; }
+  .fields { display: grid; gap: 12px; }
+  .field { display: grid; gap: 4px; }
+  .field label { font-weight: 600; }
+  .field .row { align-items: flex-start; flex-wrap: nowrap; }
+  input.text, textarea.text { font: inherit; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 100%; min-width: 0; }
+  textarea.text { min-height: 64px; resize: vertical; }
+  .check input.text { width: 260px; max-width: 40vw; }
+  .bar { height: 10px; background: var(--chip); border-radius: 999px; overflow: hidden; }
+  .bar > span { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width .6s; }
+  .bar.busy > span { width: 30% !important; animation: slide 1.4s ease-in-out infinite; }
+  @keyframes slide { from { margin-left: -30%; } to { margin-left: 100%; } }
+  @media (prefers-reduced-motion: reduce) { .bar.busy > span { animation: none; width: 100% !important; opacity: .4; } }
+  .steps { display: grid; gap: 10px; margin: 4px 0 12px; }
+  .stepline { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start; }
+  .stepline .mark { font-weight: 700; color: var(--muted); text-align: center; }
+  .stepline.done .mark { color: var(--ok); } .stepline.now .mark { color: var(--accent); }
+  .stepline:not(.now):not(.done) { color: var(--muted); }
+  .stepline .sub { display: grid; gap: 4px; margin-top: 4px; }
+  details > summary { cursor: pointer; color: var(--muted); }
+  pre.log { margin: 8px 0 0; padding: 10px 12px; background: #111; color: #d7d7d0; border-radius: 8px; max-height: 340px; overflow: auto;
+    font: 12px/1.45 ui-monospace, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+  .logs { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 16px; align-items: start; }
+  .logs .pick { display: grid; gap: 4px; max-height: calc(100vh - 230px); overflow-y: auto; }
+  .logs .pick button { justify-content: flex-start; text-align: left; display: grid; gap: 1px; width: 100%; }
+  .logs .pick button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+  .logs .pick .sub { font-size: 12px; color: var(--muted); }
+  .logs .pick h3 { margin: 10px 0 2px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .logs pre.log { max-height: none; height: calc(100vh - 260px); min-height: 320px; margin: 0; }
+  .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin-right: 4px; animation: blink 1.2s infinite; }
+  @keyframes blink { 50% { opacity: .3; } }
+  @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
+  @media (max-width: 860px) { .logs { grid-template-columns: 1fr; } .logs .pick { max-height: 220px; } .logs pre.log { height: 60vh; } }
+  .uploads { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+  .uploads .mini { width: 72px; height: 90px; border-radius: 6px; overflow: hidden; background: var(--chip); position: relative; }
+  .uploads .mini img, .uploads .mini video { width: 100%; height: 100%; object-fit: cover; }
+  .uploads .mini button { position: absolute; top: 3px; right: 3px; padding: 0 6px; font-size: 12px; background: rgba(0,0,0,.6); color: #fff; border: 0; }
+  .drop { border: 1px dashed var(--line); border-radius: 8px; padding: 14px; text-align: center; color: var(--muted); cursor: pointer; }
+  .drop.over { border-color: var(--accent); color: var(--ink); }
+  .guide-body { margin-top: 8px; color: var(--ink); }
+  .guide-body ol { padding-left: 20px; margin: 8px 0; display: grid; gap: 6px; }
+  .guide-body p { margin: 6px 0; }
+  .guide-body code { background: var(--chip); padding: 0 4px; border-radius: 4px; }
+  .statgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: 8px 0 12px; }
+  .stat { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .stat .n { font-size: 20px; font-weight: 700; }
+  .settings-group { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+  details.settings-group > summary { list-style: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--ink); padding: 2px 0; }
+  details.settings-group > summary::-webkit-details-marker { display: none; }
+  details.settings-group > summary::before { content: "▸"; color: var(--muted); width: 12px; transition: transform .15s; }
+  details.settings-group[open] > summary::before { transform: rotate(90deg); }
+  details.settings-group > summary h2 { margin: 0; }
+  details.settings-group > .group-body { padding: 12px 0 4px 20px; }
+  .all-sched { display: grid; gap: 6px; margin: 10px 0 14px; }
+  .all-sched label.acct { display: grid; grid-template-columns: auto 110px 1fr auto; gap: 10px; align-items: center; padding: 6px 10px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--bg); cursor: pointer; }
+  @media (prefers-reduced-motion: reduce) { details.settings-group > summary::before { transition: none; } }
+  @media (max-width: 640px) {
+    header { padding: 12px 16px; }
+    .next { grid-template-columns: 1fr; }
+    .night { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="topbar">
+<header>
+  <h1 id="app-name">lanecast</h1>
+  <span class="muted">on <a href="http://127.0.0.1:7070" target="_blank" rel="noopener" title="The queue behind it: every job, lane and schedule">laneq</a></span>
+  <span class="grow"></span>
+  <span id="header-links" class="row"></span>
+  <span id="conn" class="chip">connecting…</span>
+</header>
+<nav class="tabs" id="tabs" role="tablist" hidden></nav>
+</div>
+<main id="app"></main>
+
+<dialog id="viewer">
+  <div class="top"><strong id="v-title"></strong><span class="grow"></span><button onclick="viewer.close()">Close</button></div>
+  <div class="gallery" id="v-gallery"></div>
+  <pre id="v-caption"></pre>
+</dialog>
+
+<script>
+const $ = (sel, el = document) => el.querySelector(sel);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const UPCOMING_PAGE = 30;
+const state = { upcoming: {}, settingsOpen: {}, nowCount: {}, drafts: {}, replacing: {}, busy: false, error: "" };
+
+async function api(method, path, body) {
+  const r = await fetch(path, { method, headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+  if (r.status === 204) return null;
+  const data = await r.json().catch(() => null);
+  if (!r.ok) throw new Error((data && data.error) || r.statusText);
+  return data;
+}
+const jobs = (q) => api("GET", "/v1/jobs?" + new URLSearchParams(q));
+
+// --- plugins: /plugin.js (loaded after this script) calls lanecast.extend({...}) ---
+//   headerLinks: () => html            links in the top bar
+//   refresh: async tab => {}           load more data when the page refreshes (put it on state)
+//   top / bottom: tab => html          panels above / below a tab's own (tab is null-safe)
+//   liveLog: () => {name, why} | null  what the Log tab's "Live" should follow, when something of yours runs
+//   logKinds: {kind: "Label"}          names for <kind>-<account>-<stamp>.log files
+//   emptyText: tab => html             what an account with nothing queued says
+const hooks = { headerLinks: [], refresh: [], top: [], bottom: [], liveLog: [], logKinds: {}, emptyText: null };
+window.lanecast = {
+  extend(h) {
+    for (const k of ["headerLinks", "refresh", "top", "bottom", "liveLog"]) if (h[k]) hooks[k].push(h[k]);
+    Object.assign(hooks.logKinds, h.logKinds || {});
+    if (h.emptyText) hooks.emptyText = h.emptyText;
+  },
+};
+const PREF = k => "lanecast." + k;  // localStorage keys
+const APP = () => (state.dash && state.dash.app) || "lanecast";
+const reEscape = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// The account a lane belongs to: "<app>/<account>" or "<app>/<account>:<side>".
+const accountOf = lane => (new RegExp("^" + reEscape(APP()) + "/([^:]+)").exec(lane || "") || [])[1];
+
+// --- formatting ---
+const dayKey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const fmtNight = d => d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+const fmtTime = d => d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+const fmtWhen = s => { const d = new Date(s); return `${fmtNight(d)} ${fmtTime(d)}`; };
+function fmtIn(ms) {
+  if (ms <= 0) return "now";
+  const m = Math.round(ms / 60000), h = Math.floor(m / 60), d = Math.floor(h / 24);
+  if (d >= 1) return `in ${d}d ${h % 24}h`;
+  if (h >= 1) return `in ${h}h ${m % 60}m`;
+  return `in ${m}m`;
+}
+
+// --- job previews (payload.preview = {title, subtitle, caption, media: [{url, type}]}) ---
+const preview = j => (j.payload && j.payload.preview) || {};
+const titleOf = j => preview(j).title || j.key || `${j.type} #${j.id}`;
+const media = j => preview(j).media || [];
+function mediaTag(m, attrs = "") {
+  if (!m) return "";
+  return m.type === "image"
+    ? `<img src="${esc(m.url)}" loading="lazy" alt="" ${attrs}>`
+    : `<video src="${esc(m.url)}#t=0.5" preload="metadata" muted playsinline ${attrs}></video>`;
+}
+const kindLabel = j => ({ carousel: "Carousel", image: "Photo", reel: "Reel" }[preview(j).kind] || j.type);
+
+function openViewer(id) {
+  const j = state.byId[id];
+  if (!j) return;
+  $("#v-title").textContent = `${titleOf(j)} · ${kindLabel(j)}`;
+  $("#v-gallery").innerHTML = media(j).map(m => m.type === "image"
+    ? `<img src="${esc(m.url)}" alt="">`
+    : `<video src="${esc(m.url)}" controls muted playsinline></video>`).join("") || `<div class="muted">No preview</div>`;
+  $("#v-caption").textContent = preview(j).caption || JSON.stringify(j.payload, null, 2);
+  viewer.showModal();
+}
+
+// --- actions ---
+async function act(fn, confirmText) {
+  if (confirmText && !confirm(confirmText)) return;
+  try { state.busy = true; await fn(); state.error = ""; }
+  catch (e) { state.error = e.message; }
+  finally { state.busy = false; refresh(); }
+}
+const move = (id, delta) => act(() => api("POST", `/v1/jobs/${id}/move`, { delta }));
+const skip = id => act(() => api("POST", `/v1/jobs/${id}/cancel`), "Skip this post? It won't be posted.");
+const retry = id => act(() => api("POST", `/v1/jobs/${id}/retry`));
+const hold = id => act(() => api("POST", `/v1/jobs/${id}/hold`));
+const setTonight = (lane, day, count) => act(() => api("POST", `/v1/schedules/${encodeURIComponent(lane)}/override`, { day, count }));
+const pause = (lane, paused) => act(() => api("POST", `/v1/lanes/${encodeURIComponent(lane)}/${paused ? "pause" : "resume"}`),
+  paused ? "Stop posting?\n\nA post that's going up right now finishes, then nothing else posts. "
+         + "Nightly runs are skipped while stopped, and nothing piles up: resuming starts again at the next run, "
+         + "with the posts that were waiting still first in line."
+         : "");
+function postNow(lane) {
+  const n = Math.max(1, Math.min(25, +$(`#now-${CSS.escape(lane)}`).value || 1));
+  act(() => api("POST", `/v1/lanes/${encodeURIComponent(lane)}/release`, { n }),
+    `Post the next ${n === 1 ? "post" : n + " posts"} right now? ${n === 1 ? "It goes" : "They go"} up one after another, for real.`);
+}
+function saveSettings(lane) {
+  const at = $(`#at-${CSS.escape(lane)}`).value, count = +$(`#count-${CSS.escape(lane)}`).value;
+  const s = state.schedules.find(s => s.lane === lane);
+  // While posting is stopped, laneq shows the schedule as off and remembers it was on
+  // (enabled_before_pause). Send what it should be after Resume, or saving would turn it off for good.
+  act(async () => {
+    await api("PUT", `/v1/schedules/${encodeURIComponent(lane)}`, { ...s, at, count, enabled: s.enabled || !!s.enabled_before_pause });
+    delete state.drafts[draftId(lane, "sched", "at")]; delete state.drafts[draftId(lane, "sched", "count")];
+  });
+}
+// Unsaved schedule settings are kept in state.drafts, so the 5-second refresh can't put the saved ones back.
+const schedValue = (s, k) => state.drafts[draftId(s.lane, "sched", k)] ?? s[k];
+const schedDirty = s => ["at", "count"].some(k => { const d = state.drafts[draftId(s.lane, "sched", k)]; return d !== undefined && String(d) !== String(s[k]); });
+function schedInput(lane, k, v) { state.drafts[draftId(lane, "sched", k)] = v; }
+function scheduleOn(lane) {
+  const s = state.schedules.find(s => s.lane === lane);
+  act(() => api("PUT", `/v1/schedules/${encodeURIComponent(lane)}`, { ...s, enabled: true }),
+    "Turn the nightly schedule on? Posts go up every night at the set time, starting with the next one.");
+}
+function toggleSettings(lane) { state.settingsOpen[lane] = !state.settingsOpen[lane]; render(); }
+function toggleBackground() {
+  state.showBackground = !state.showBackground;
+  try { localStorage.setItem(PREF("showBackground"), state.showBackground ? "1" : ""); } catch {}
+  render();
+}
+try { state.showBackground = !!localStorage.getItem(PREF("showBackground")); } catch {}
+function moreUpcoming(lane) { state.upcoming[lane] = (state.upcoming[lane] || UPCOMING_PAGE) + UPCOMING_PAGE; refresh(); }
+const openSetup = (lane, i) => act(() => api("POST", `/api/tabs/${encodeURIComponent(lane)}/setup/${i}/open`));
+// Text typed into a tab's boxes is kept here, so the 5-second refresh can't wipe it.
+const draftId = (lane, kind, i) => `${lane}/${kind}/${i}`;
+function saveValue(lane, kind, i, path) {
+  const id = draftId(lane, kind, i);
+  const value = state.drafts[id] ?? "";
+  act(async () => { await api("POST", path, { value }); delete state.drafts[id]; delete state.replacing[id]; });
+}
+const saveField = (lane, i) => saveValue(lane, "field", i,
+  lane === SETTINGS ? `/api/settings/fields/${i}` : `/api/tabs/${encodeURIComponent(lane)}/fields/${i}`);
+// An action button: enqueue each of its jobs.
+function runAction(lane, i) {
+  const a = lane === SETTINGS ? state.dash.settings.actions[i] : tabList().find(t => t.lane === lane).actions[i];
+  act(async () => { for (const job of a.jobs) await api("POST", "/v1/jobs", job); }, a.confirm || `${a.label}?`);
+}
+function actionButtons(lane, actions) {
+  return actions.map((a, i) => `<button class="primary" onclick='runAction(${esc(JSON.stringify(lane))}, ${i})'
+    ${a.missing.length ? `disabled title="${esc("Set " + a.missing.join(" and ") + " first (in Settings)")}"` : `title="${esc(a.help || "")}"`}>${esc(a.label)}</button>`).join("");
+}
+const saveCheck = (lane, i) => saveValue(lane, "check", i, `/api/tabs/${encodeURIComponent(lane)}/setup/${i}/value`);
+function replaceCheck(lane, i) { state.replacing[draftId(lane, "check", i)] = true; render(); }
+function copyCommand(lane, i) {
+  const c = currentTab().setup[i];
+  navigator.clipboard.writeText(c.command).then(
+    () => { state.error = ""; state.copied = draftId(lane, "check", i); render(); setTimeout(() => { state.copied = ""; render(); }, 2000); },
+    e => { state.error = "Couldn't copy: " + e.message; render(); });
+}
+function runJob(lane, i) {
+  const { label, confirm: question, ...job } = currentTab().setup[i].job;
+  act(() => api("POST", "/v1/jobs", job), question || `${label}?`);
+}
+// Typing in a tab's box pauses the refresh; leaving the box resumes it.
+const selecting = () => { const s = getSelection(); return !!(s && !s.isCollapsed && s.anchorNode && s.anchorNode.parentElement?.closest("pre")); };
+const editing = () => !!document.activeElement?.closest?.("[data-draft]") || selecting();
+
+// --- tabs: one per lane. Configured tabs (laneq -tabs) come first, in their order,
+// then any other lane with a schedule. The choice lives in the URL hash. ---
+// The Settings tab collects values that are set once (tokens, IDs): the shared
+// ones, and each tab's fields and checks marked "settings". "~" keeps it apart from lane names.
+const SETTINGS = "~settings", LOG = "~log";
+const blank = { fields: [], setup: [], actions: [], ready: true };
+function tabList() {
+  const d = state.dash || { tabs: [], settings: { fields: [], actions: [] } };
+  const list = d.tabs.map(t => ({ ...t }));
+  for (const s of state.schedules || []) {
+    if (!list.some(t => t.lane === s.lane)) list.push({ ...blank, lane: s.lane, title: s.lane });
+  }
+  const hasSettings = d.settings.fields.length || d.settings.actions.length
+    || d.tabs.some(t => t.fields.some(f => f.settings) || t.setup.some(c => c.settings));
+  if (hasSettings) list.push({ ...blank, lane: SETTINGS, title: "Settings", isSettings: true });
+  list.push({ ...blank, lane: LOG, title: "Log", isLog: true });
+  return list;
+}
+function currentTab() {
+  const list = tabList();
+  const want = decodeURIComponent(location.hash.slice(1));
+  return list.find(t => t.lane === want) || list[0] || null;
+}
+function selectTab(lane) { location.hash = encodeURIComponent(lane); }
+window.addEventListener("hashchange", () => refresh());  // switching tabs loads that tab fresh
+// A tab shows its lane and the lanes under it ("<lane>:<anything>", e.g. a side lane
+// for imports that mustn't hold up the main one). Jobs outside any lane (e.g. token
+// refreshes) belong to every tab.
+const underLane = (j, lane) => j.lane === lane || (j.lane || "").startsWith(lane + ":");
+const inTab = (j, tab) => !tab || tab.isSettings || tab.isLog || !j.lane || underLane(j, tab.lane);
+// The lane a tab's lists are filtered to (none for Settings: it shows everything).
+const laneOf = tab => tab && !tab.isSettings && !tab.isLog ? tab.lane : null;
+
+// --- data ---
+async function refresh() {
+  try {
+    const [lanes, schedules, active, dead, dash] = await Promise.all([
+      api("GET", "/v1/lanes"), api("GET", "/v1/schedules"),
+      jobs({ state: "queued,running" }), jobs({ state: "dead" }),
+      api("GET", "/api/dashboard"),
+    ]);
+    Object.assign(state, { lanes, schedules, dash });
+    const lane = laneOf(currentTab());
+    const held = {};
+    await Promise.all(schedules.filter(s => !lane || s.lane === lane).map(async s => {
+      held[s.lane] = await jobs({ lane: s.lane, state: "held", limit: s.next_count + (state.upcoming[s.lane] || UPCOMING_PAGE) });
+    }));
+    const history = await jobs({ state: "succeeded", newest: "true", limit: 12, ...(lane ? { lane } : {}) });
+    const tab = currentTab();
+    const workerLog = tab && tab.isSettings ? await api("GET", "/api/worker-log").catch(() => null) : null;
+    const usage = tab && tab.isSettings ? await api("GET", "/api/stats").catch(() => null) : null;
+    Object.assign(state, { active, dead, history, held, workerLog, usage, loaded: true });
+    for (const h of hooks.refresh) { try { await h(tab); } catch (e) { console.error(e); } }
+    document.title = dash.name; $("#app-name").textContent = dash.name;
+    $("#header-links").innerHTML = hooks.headerLinks.map(f => f()).join("");
+    if (tab && tab.isLog) await loadLogs();
+    state.byId = {};
+    for (const j of [...active, ...dead, ...history, ...Object.values(held).flat()]) state.byId[j.id] = j;
+    $("#conn").textContent = "live"; $("#conn").className = "chip ok";
+  } catch (e) {
+    $("#conn").textContent = "server unreachable"; $("#conn").className = "chip bad";
+  }
+  render();
+}
+
+// --- logs and formatting ---
+const fmtBytes = n => n >= 1e9 ? (n / 1e9).toFixed(1) + " GB" : n >= 1e6 ? Math.round(n / 1e6) + " MB" : Math.round(n / 1e3) + " KB";
+function fmtFor(ms) {
+  const m = Math.max(0, Math.round(ms / 60000)), h = Math.floor(m / 60);
+  return h ? `${h}h ${m % 60}m` : `${m}m`;
+}
+const cleanLine = l => l.replace(/^[⠀-⣿?]+\s/, "").replace(/\?(?=:\s*\d+%$)/, "");
+state.logOpen = {};
+try { state.logOpen = JSON.parse(localStorage.getItem(PREF("logOpen")) || "{}"); } catch {}
+function toggleLog(key, open) {
+  state.logOpen[key] = open;
+  try { localStorage.setItem(PREF("logOpen"), JSON.stringify(state.logOpen)); } catch {}
+}
+function logBox(key, lines, summary, openByDefault = false) {
+  return `<details data-log="${esc(key)}" ${(state.logOpen[key] ?? openByDefault) ? "open" : ""} ontoggle='toggleLog(${esc(JSON.stringify(key))}, this.open)'>
+    <summary>${esc(summary)}</summary>
+    <pre class="log">${esc(lines.map(cleanLine).join("\n").trimEnd()) || "(empty)"}</pre>
+  </details>`;
+}
+function workerPanel() {
+  const w = state.workerLog;
+  if (!w) return "";
+  return `<section class="panel">
+    <h2>Worker output</h2>
+    <p class="muted" style="margin-top:-6px">Every job the worker runs, as it runs it. Full log: ${esc(w.path)}</p>
+    ${logBox("worker", w.lines, "Show the last 200 lines")}
+  </section>`;
+}
+// Logs keep their scroll position across the 5-second refresh, and follow new output when at the bottom.
+function keepScroll(fn) {
+  const before = {};
+  const boxes = () => document.querySelectorAll("details[data-log] pre, pre[data-log]");
+  const keyOf = p => p.dataset.log || p.parentElement.dataset.log;
+  boxes().forEach(p => {
+    before[keyOf(p)] = { top: p.scrollTop, bottom: p.scrollHeight - p.scrollTop - p.clientHeight < 24 };
+  });
+  fn();
+  boxes().forEach(p => {
+    const b = before[keyOf(p)];
+    p.scrollTop = !b || b.bottom ? p.scrollHeight : b.top;
+  });
+}
+
+// --- the Log tab: the output of whatever is running, or any earlier pull/import ---
+state.logSel = "live";
+try { state.logSel = localStorage.getItem(PREF("logSel")) || "live"; } catch {}
+const titleFor = m => (tabList().find(t => t.account === m || accountOf(t.lane) === m) || {}).title || m;
+const fmtAgo = sec => { const s = Date.now() / 1000 - sec; return s < 60 ? "just now" : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : fmtWhen(new Date(sec * 1000)); };
+// What "Live" shows: whatever a plugin says is running (with its own log), else the worker's log.
+function liveLog() {
+  for (const f of hooks.liveLog) { const r = f(); if (r) return r; }
+  const extra = ((state.logList && state.logList.extra) || []).find(x => x.running);
+  if (extra) return { name: extra.name, why: extra.title };
+  const run = (state.active || []).find(j => j.state === "running");
+  return { name: "worker", why: run ? `${kindLabel(run)}: ${titleOf(run)}` : "" };
+}
+async function loadLogs() {
+  try {
+    state.logList = await api("GET", "/api/logs");
+    const name = state.logSel === "live" ? liveLog().name : state.logSel;
+    state.log = await api("GET", `/api/logs/${encodeURIComponent(name)}`);
+  } catch (e) { state.log = { name: state.logSel, lines: [], error: e.message }; }
+}
+function pickLog(name) {
+  state.logSel = name;
+  try { localStorage.setItem(PREF("logSel"), name); } catch {}
+  loadLogs().then(render);
+}
+function logsPanel() {
+  const L = state.logList || { files: [], extra: [] }, live = liveLog(), now = Date.now() / 1000;
+  const fresh = t => t && now - t < 20;  // written to in the last 20 s: still going
+  const btn = (name, title, sub, on) => `<button aria-pressed="${state.logSel === name}" onclick='pickLog(${esc(JSON.stringify(name))})'>
+      <span>${on ? `<span class="live-dot"></span>` : ""}${esc(title)}</span>${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</button>`;
+  const running = !!live.why;
+  const list = btn("live", "Live: whatever is running", running ? live.why : "nothing running; showing the worker", !!running)
+    + `<h3>Logs</h3>`
+    + btn("worker", "Worker", "every job: posts, token renewals and more" + (L.worker ? ` · ${fmtAgo(L.worker)}` : ""), fresh(L.worker))
+    + (L.extra || []).map(x => btn(x.name, x.title, x.sub || "", !!x.running)).join("")
+    + (L.files.length ? `<h3>Job logs</h3>` + L.files.map(f => btn(f.name, `${hooks.logKinds[f.kind] || f.kind} · ${titleFor(f.member)}`,
+        `${fmtWhen(new Date(f.mtime * 1000))} · ${fmtBytes(f.size)}`, fresh(f.mtime))).join("") : "");
+  const g = state.log || { lines: [] };
+  const label = n => n === "worker" ? "Worker" : (((L.extra || []).find(x => x.name === n) || {}).title || n || "");
+  const name = state.logSel === "live" ? `Live → ${label(g.name)}` : label(g.name);
+  return `<section class="panel">
+    <h2>Log <span class="muted" style="font-weight:400">${esc(name)}</span><span class="grow"></span>
+      <button onclick="copyLog()" title="Copy the whole log">${state.copied === "log" ? "Copied" : "Copy"}</button></h2>
+    <div class="logs">
+      <div class="pick">${list}</div>
+      <div>
+        <div class="muted" style="margin:-4px 0 8px;font-size:12px;word-break:break-all">${g.error ? `<span style="color:var(--bad)">${esc(g.error)}</span>` : esc(g.path || "")}
+          · updates every 2 s; scroll up to stop following, select text to pause</div>
+        <pre class="log" data-log="logtab">${esc((g.lines || []).map(cleanLine).join("\n").trimEnd()) || "(empty)"}</pre>
+      </div>
+    </div>
+  </section>`;
+}
+function copyLog() {
+  navigator.clipboard.writeText(((state.log && state.log.lines) || []).join("\n")).then(() => {
+    state.copied = "log"; render(); setTimeout(() => { state.copied = ""; render(); }, 1500);
+  });
+}
+setInterval(async () => {
+  const tab = currentTab();
+  if (!state.loaded || !tab || !tab.isLog || state.busy || editing() || document.hidden) return;
+  await loadLogs(); render();
+}, 2000);
+
+// --- Getting started: what a new install still needs, step by step, until it's all done ---
+state.guideOpen = null;
+function guideSteps() {
+  const d = state.dash, accts = d.tabs, lanes = state.lanes || [], scheds = state.schedules || [];
+  const mine = l => l.startsWith(APP() + "/") && !l.includes(":");
+  const withToken = accts.filter(t => t.setup.every(c => c.done)).length;
+  const hasPosts = lanes.some(l => mine(l.name) && Object.values(l.counts || {}).some(n => n > 0));
+  const posting = scheds.some(s => mine(s.lane) && s.enabled && !(lanes.find(l => l.name === s.lane) || {}).paused);
+  const link = (url, text) => `<a href="${url}" target="_blank" rel="noopener">${text}</a>`;
+  return [
+    { done: accts.length > 0, title: "Add an account",
+      body: `In <a href="#~settings">Settings</a> → <strong>Accounts</strong>, give it a short id (like <code>mybakery</code>) and the name you want on its tab. Add one for each Instagram account you'll post to.` },
+    { done: d.setup.outbox, title: "Connect GitHub (where Instagram picks up your photos)",
+      body: `<p>Instagram only accepts photos from a public web link, so each post's files sit in a public GitHub repository for the minute it takes to post, then get deleted. You need a free GitHub account.</p>
+        <p><strong>Easiest:</strong> open a terminal and run <code>lanecast github</code>${d.setup.gh ? "" : ` (it needs the GitHub CLI from ${link("https://cli.github.com", "cli.github.com")} first)`}. Your browser opens to sign in, and it makes the repository for you. Then reload this page.</p>
+        <details><summary>Or do it by hand</summary><ol>
+          <li>Make an account at ${link("https://github.com/signup", "github.com/signup")}.</li>
+          <li>Make a <strong>public</strong> repository called <code>lanecast-outbox</code> at ${link("https://github.com/new", "github.com/new")}, with <em>Add a README</em> ticked.</li>
+          <li>Make a token at ${link("https://github.com/settings/personal-access-tokens/new", "GitHub → Fine-grained tokens")}: <em>Only select repositories</em> → <code>lanecast-outbox</code>; <em>Repository permissions</em> → <strong>Contents: Read and write</strong>. Copy it.</li>
+          <li>In <a href="#~settings">Settings</a> → <strong>Outbox</strong>, put <code>your-github-name/lanecast-outbox</code> in <strong>Outbox repo</strong> and paste the token in <strong>GitHub token</strong>.</li></ol></details>` },
+    { done: accts.length > 0 && withToken === accts.length, title: `Connect each Instagram account${accts.length ? ` (${withToken} of ${accts.length} done)` : ""}`,
+      body: `<p>This is the longest step, about 10 minutes the first time. Instagram only lets posting apps use <strong>professional</strong> accounts, and you make a small private "app" on Meta's developer site that only you use.</p>
+        <ol>
+          <li><strong>Make the Instagram account professional</strong> (free, and you can switch back): in the Instagram app, your profile → ☰ → <em>Account type and tools</em> → <em>Switch to professional account</em> → <em>Creator</em> or <em>Business</em>. You don't need a Facebook Page.</li>
+          <li><strong>Make a Meta app (once, for all your accounts):</strong> go to ${link("https://developers.facebook.com/apps", "developers.facebook.com/apps")} and log in with Facebook (sign up as a developer if it asks). <em>Create app</em> → any name (like "my lanecast") → use case <strong>Manage messaging &amp; content on Instagram</strong> → <em>Create app</em>. Skip business verification and app review; you don't need them.</li>
+          <li><strong>Add each Instagram account as a tester:</strong> in the app, <em>App roles</em> → <em>Roles</em> → <em>Add People</em> → <em>Instagram Tester</em> → type the account's username. Then, logged in to Instagram as that account, open ${link("https://www.instagram.com/accounts/manage_access/", "instagram.com/accounts/manage_access")} → <em>Tester Invites</em> → <em>Accept</em>.</li>
+          <li><strong>Get its token:</strong> in the app, <em>Use cases</em> → <em>Customize</em> (next to the Instagram one) → <em>API setup with Instagram login</em> → <em>Generate access tokens</em> → <em>Add account</em>, log in as the account, then <em>Generate token</em> and copy the long code (it starts with <code>IG</code>). If it logs you in as the wrong account, log out of instagram.com first.</li>
+          <li><strong>Paste it</strong> into the account's <em>Instagram token</em> box (on its tab, or in <a href="#~settings">Settings</a>) and press <em>Save</em>. It stays on this computer, and lanecast renews it every month on its own.</li>
+        </ol>
+        <p class="muted">Stuck? The token is the only hard part: someone who has done it can walk you through it in a few minutes.</p>` },
+    { done: hasPosts, title: "Add your first post",
+      body: `On an account's tab, under <strong>Add a post</strong>, drop in photos or a video, write a caption, and press <em>Add to the end of the line</em>. The first post also makes the account's nightly schedule (5 a night at midnight), which starts stopped.` },
+    { done: posting, title: "Turn posting on",
+      body: `Look over the line of posts on the account's tab, change the time or how many a night in its <em>Settings</em> if you like, then press <strong>Resume posting</strong>. Posts go up each night from then on, oldest first.` },
+  ];
+}
+function guidePanel() {
+  const d = state.dash;
+  if (!d || !d.setup || !d.setup.guide) return "";
+  const steps = guideSteps(), left = steps.filter(s => !s.done).length;
+  if (!left) return "";
+  const next = steps.findIndex(s => !s.done), open = state.guideOpen ?? next;
+  return `<section class="panel">
+    <h2>Getting started <span class="chip warn">${steps.length - left} of ${steps.length} done</span></h2>
+    <div class="checks">${steps.map((s, i) => `<div class="check ${s.done ? "done" : ""}" style="grid-template-columns:22px 1fr">
+      <span class="mark">${s.done ? "✓" : i + 1}</span>
+      <div><div style="cursor:pointer" onclick="state.guideOpen = ${open === i ? -1 : i}; render()"><strong>${esc(s.title)}</strong>
+        <span class="muted">${s.done ? "done" : open === i ? "▾" : "▸ how"}</span></div>
+        ${open === i && !s.done ? `<div class="guide-body">${s.body}</div>` : ""}</div>
+    </div>`).join("")}</div>
+  </section>`;
+}
+
+// --- adding posts: upload photos/videos, write a caption, put it at the end of the line ---
+state.newPost = {};
+const draftOf = account => state.newPost[account] || (state.newPost[account] = { files: [], uploading: 0 });
+async function uploadFiles(account, files) {
+  const d = draftOf(account);
+  for (const f of files) {
+    d.uploading++; render();
+    try {
+      const r = await fetch(`/api/upload?name=${encodeURIComponent(f.name)}`, { method: "POST", body: f });
+      const data = await r.json().catch(() => null);
+      if (!r.ok) throw new Error((data && data.error) || r.statusText);
+      d.files.push(data);
+    } catch (e) { state.error = `${f.name}: ${e.message}`; }
+    d.uploading--; render();
+  }
+}
+function dropFiles(ev, account) {
+  ev.preventDefault(); ev.currentTarget.classList.remove("over");
+  uploadFiles(account, [...ev.dataTransfer.files]);
+}
+function removeUpload(account, i) { draftOf(account).files.splice(i, 1); render(); }
+function moveUpload(account, i, d) { const f = draftOf(account).files; const [x] = f.splice(i, 1); f.splice(i + d, 0, x); render(); }
+function queuePost(account) {
+  const d = draftOf(account), id = `post/${account}/caption`;
+  act(async () => {
+    await api("POST", `/api/accounts/${encodeURIComponent(account)}/posts`, { media: d.files.map(f => ({ path: f.path })), caption: state.drafts[id] || "" });
+    delete state.newPost[account]; delete state.drafts[id];
+  });
+}
+function addPostsPanel(tab) {
+  const a = tab.account, d = draftOf(a), id = `post/${a}/caption`;
+  return `<section class="panel">
+    <h2>Add a post</h2>
+    <div class="drop" ondragover="event.preventDefault(); this.classList.add('over')" ondragleave="this.classList.remove('over')"
+         ondrop='dropFiles(event, ${esc(JSON.stringify(a))})' onclick="this.nextElementSibling.click()">
+      Drop photos or videos here, or click to pick them. Up to 10 make a carousel; one video makes a reel.</div>
+    <input type="file" multiple accept="image/*,video/*" hidden onchange='uploadFiles(${esc(JSON.stringify(a))}, [...this.files]); this.value = ""'>
+    ${d.files.length || d.uploading ? `<div class="uploads">${d.files.map((f, i) => `<div class="mini">${mediaTag({ url: f.url, type: f.type })}
+        <button onclick='removeUpload(${esc(JSON.stringify(a))}, ${i})' title="Remove">✕</button></div>`).join("")}
+      ${d.uploading ? `<div class="mini" style="display:grid;place-items:center;color:var(--muted)">…</div>` : ""}</div>` : ""}
+    <div class="field" style="margin-top:8px">${draftInput(id, { multiline: true, placeholder: "Caption (empty: the account's default caption)" })}</div>
+    <div class="row" style="margin-top:8px">
+      <button class="primary" onclick='queuePost(${esc(JSON.stringify(a))})' ${d.files.length && !d.uploading && d.files.length <= 10 ? "" : "disabled"}>Add to the end of the line</button>
+      <span class="muted">${d.files.length > 10 ? "At most 10 items in a carousel." : "It goes up on a night of the schedule below, after the posts already waiting."}</span>
+    </div>
+  </section>`;
+}
+function addAccount() {
+  const id = (state.drafts["~acct/id"] || "").trim().toLowerCase(), title = (state.drafts["~acct/title"] || "").trim();
+  act(async () => { await api("POST", "/api/accounts", { id, title }); delete state.drafts["~acct/id"]; delete state.drafts["~acct/title"]; });
+}
+function accountsPanel() {
+  const d = state.dash;
+  if (!d.accounts_editable) return "";
+  return `<section class="panel">
+    <h2>Accounts <span class="chip">${d.tabs.length}</span></h2>
+    <p class="muted" style="margin-top:-6px">Each account gets its own tab, line of posts and nightly schedule. Its Instagram token goes in Settings below once it's added.</p>
+    <div class="row">
+      <input class="text" style="width:180px" placeholder="id, e.g. mybakery" data-draft="~acct/id" value="${esc(state.drafts["~acct/id"] || "")}" oninput='state.drafts["~acct/id"] = this.value'>
+      <input class="text" style="width:220px" placeholder="Name shown on its tab" data-draft="~acct/title" value="${esc(state.drafts["~acct/title"] || "")}" oninput='state.drafts["~acct/title"] = this.value'>
+      <button class="primary" onclick="addAccount()">Add account</button>
+    </div>
+  </section>`;
+}
+const fmtNum = n => (n ?? 0).toLocaleString();
+function usagePanel() {
+  const u = state.usage;
+  if (!u) return "";
+  const t = u.totals || {};
+  return `<section class="panel">
+    <h2>Usage stats <span class="chip ${u.enabled ? "ok" : ""}">${u.enabled ? "sharing totals" : "off"}</span><span class="grow"></span>
+      <button onclick="toggleUsage(${!u.enabled})">${u.enabled ? "Turn off" : "Turn on"}</button></h2>
+    <p class="muted" style="margin-top:-6px">${esc(u.explain || "")}</p>
+    <div class="statgrid">
+      <div class="stat"><div class="n">${fmtNum(t.accounts)}</div><div class="muted">accounts</div></div>
+      <div class="stat"><div class="n">${fmtNum(t.posts_published)}</div><div class="muted">posts published</div></div>
+      <div class="stat"><div class="n">${fmtNum(t.posts_queued)}</div><div class="muted">posts waiting</div></div>
+      <div class="stat"><div class="n">${fmtBytes(t.media_bytes || 0)}</div><div class="muted">media managed</div></div>
+    </div>
+    ${u.last_sent ? `<div class="muted">Last sent ${esc(fmtWhen(new Date(u.last_sent * 1000)))}.</div>` : ""}
+    ${u.payload ? `<details><summary>Exactly what's sent</summary><pre class="log">${esc(JSON.stringify(u.payload, null, 2))}</pre></details>` : ""}
+  </section>`;
+}
+const toggleUsage = on => act(() => api("POST", "/api/stats", { enabled: on }),
+  on ? "" : "Stop sending usage totals? Nothing else changes.");
+
+// --- rendering ---
+function card(j, order, canUp, canDown) {
+  const m = media(j);
+  return `<div class="card">
+    <div class="thumb" onclick="openViewer(${j.id})">
+      ${mediaTag(m[0])}
+      ${order ? `<span class="order">#${order}</span>` : ""}
+      ${m.length > 1 ? `<span class="count">1/${m.length}</span>` : ""}
+      <span class="kind">${esc(kindLabel(j))}</span>
+    </div>
+    <div class="body">
+      <div class="title" title="${esc(titleOf(j))}">${esc(titleOf(j))}</div>
+      ${preview(j).subtitle ? `<div class="muted">${esc(preview(j).subtitle)}</div>` : ""}
+      <div class="actions">
+        <button class="icon" title="Earlier" onclick="move(${j.id},-1)" ${canUp ? "" : "disabled"}>↑</button>
+        <button class="icon" title="Later" onclick="move(${j.id},1)" ${canDown ? "" : "disabled"}>↓</button>
+        <span class="grow"></span>
+        <button class="danger" onclick="skip(${j.id})">Skip</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function item(j, right, extra = "") {
+  return `<div class="item">
+    <div class="mini" onclick="openViewer(${j.id})">${mediaTag(media(j)[0])}</div>
+    <div class="meta">
+      <div class="title">${esc(titleOf(j))}</div>
+      <div class="muted">${esc(kindLabel(j))}${j.lane ? " · " + esc(j.lane.startsWith(APP() + "/") ? j.lane.slice(APP().length + 1) : j.lane) : ""}${extra}</div>
+      ${j.last_error ? `<div class="err">${esc(j.last_error)}</div>` : ""}
+    </div>
+    <div class="row">${right}</div>
+  </div>`;
+}
+
+function lanePanel(s) {
+  const lane = state.lanes.find(l => l.name === s.lane) || { counts: {} };
+  const held = state.held[s.lane] || [];
+  const next = new Date(s.next_run);
+  const nightKey = dayKey(next);
+  const tonight = held.slice(0, s.next_count);
+  const rest = held.slice(s.next_count);
+  const overridden = s.overrides && nightKey in s.overrides;
+  const blocked = state.dead.some(j => j.lane === s.lane);
+  const nights = [];
+  for (let i = 0, d = 1; i < rest.length; d++) {
+    const day = new Date(next); day.setDate(day.getDate() + d);
+    const n = (s.overrides && s.overrides[dayKey(day)]) ?? s.count;
+    if (n === 0) { nights.push({ day, jobs: [] }); continue; }
+    nights.push({ day, jobs: rest.slice(i, i + n) }); i += n;
+    if (d > 400) break;
+  }
+  const leftNights = s.count ? Math.ceil(s.held / s.count) : 0;
+  const L = esc(JSON.stringify(s.lane));
+  return `<section class="panel">
+    <h2>${esc((tabList().find(t => t.lane === s.lane) || s).title || s.lane)}
+      ${lane.paused ? `<span class="chip warn">stopped</span>` : s.enabled ? `<span class="chip ok">scheduled</span>`
+        : `<span class="chip bad" title="Nothing posts on its own: only Post now">schedule off</span><button class="primary" onclick='scheduleOn(${L})'>Turn schedule on</button>`}
+      ${blocked ? `<span class="chip bad">blocked: needs attention</span>` : ""}
+      <span class="grow" style="flex:1"></span>
+      <button class="${lane.paused ? "primary" : "danger"}" onclick='pause(${L}, ${!lane.paused})'>${lane.paused ? "Resume posting" : "Stop posting"}</button>
+      <button onclick='toggleSettings(${L})'>Settings</button>
+    </h2>
+    <div class="next">
+      <div>
+        <div class="muted">Next run</div>
+        ${lane.paused ? `<div class="when">Stopped</div>
+        <div class="muted">Nothing posts until you resume. Nights while stopped are skipped, not made up.</div>`
+        : `<div class="when">${esc(fmtNight(next))}, ${esc(fmtTime(next))} <span class="muted" style="font-size:14px;font-weight:400">${esc(fmtIn(next - Date.now()))}</span></div>`}
+        <div class="muted">${s.held} posts waiting · about ${leftNights} nights at ${s.count} a night</div>
+      </div>
+      <div>
+        <div class="muted">Posts this run${overridden ? ` (default ${s.count})` : ""}</div>
+        <div class="row">
+          <span class="stepper">
+            <button onclick='setTonight(${L}, "${nightKey}", ${Math.max(0, s.next_count - 1)})' ${s.next_count <= 0 ? "disabled" : ""}>−</button>
+            <output>${s.next_count}</output>
+            <button onclick='setTonight(${L}, "${nightKey}", ${s.next_count + 1})' ${s.next_count >= 25 ? "disabled" : ""}>+</button>
+          </span>
+          ${overridden ? `<button onclick='setTonight(${L}, "${nightKey}", -1)'>Reset</button>` : ""}
+        </div>
+      </div>
+      <div class="row" style="grid-column: 1 / -1; padding-top: 8px; border-top: 1px dashed var(--line); margin-top: 6px">
+        <span class="muted">Don't wait for the schedule:</span>
+        <input type="number" id="now-${esc(s.lane)}" min="1" max="25" value="${state.nowCount[s.lane] || 1}" style="width:60px"
+               oninput="state.nowCount[${esc(JSON.stringify(s.lane))}] = +this.value">
+        <button class="primary" onclick='postNow(${L})' ${held.length && !lane.paused ? "" : "disabled"}>Post now</button>
+        <span class="muted">${lane.paused ? "posting is stopped; resume to post" : `takes the next posts in line; tonight's run still posts its ${s.next_count}`}</span>
+      </div>
+    </div>
+    <div class="settings ${state.settingsOpen[s.lane] ? "open" : ""}">
+      <label>Daily at <input type="time" id="at-${esc(s.lane)}" value="${esc(schedValue(s, "at"))}" data-draft
+          oninput='schedInput(${L}, "at", this.value)'></label>
+      <label>Posts a night <input type="number" id="count-${esc(s.lane)}" min="0" max="25" value="${esc(schedValue(s, "count"))}" style="width:60px" data-draft
+          oninput='schedInput(${L}, "count", this.value)'></label>
+      <button class="primary" onclick='saveSettings(${L})'>Save</button>
+      ${schedDirty(s) ? `<span class="chip warn">not saved yet</span>` : ""}
+    </div>
+
+    <h3>This run</h3>
+    ${tonight.length ? `<div class="cards">${tonight.map((j, i) => card(j, i + 1, i > 0, i < held.length - 1)).join("")}</div>`
+                     : `<div class="empty">Nothing to post${s.next_count === 0 ? " — this run is set to 0" : ""}.</div>`}
+
+    <h3>Coming up</h3>
+    ${nights.length ? nights.map(n => `<div class="night">
+        <div class="date">${esc(fmtNight(n.day))}</div>
+        <div class="strip">${n.jobs.length ? n.jobs.map(j => `<div class="mini" title="${esc(titleOf(j))}" onclick="openViewer(${j.id})">${mediaTag(media(j)[0])}</div>`).join("") : `<span class="muted">no posts</span>`}</div>
+      </div>`).join("") : `<div class="empty">Nothing else queued.</div>`}
+    ${held.length < s.held ? `<div class="row" style="margin-top:10px"><button onclick='moreUpcoming(${L})'>Show more</button><span class="muted">${s.held - held.length} more</span></div>` : ""}
+  </section>`;
+}
+
+// A draftable input: its value comes from the draft if there is one.
+function draftInput(id, { value = "", multiline = false, secret = false, placeholder = "" }) {
+  const v = esc(state.drafts[id] ?? value), attrs = `data-draft="${esc(id)}" placeholder="${esc(placeholder)}"
+    oninput="state.drafts[this.dataset.draft] = this.value" autocomplete="off" spellcheck="false"`;
+  return multiline ? `<textarea class="text" ${attrs}>${v}</textarea>`
+    : `<input class="text" type="${secret ? "password" : "text"}" value="${v}" ${attrs}>`;
+}
+
+function fieldRow(tab, f, i) {
+  const L = esc(JSON.stringify(tab.lane)), id = draftId(tab.lane, "field", i);
+  const placeholder = f.secret && f.set ? "saved; paste a new one to replace it" : f.placeholder;
+  return `<div class="field">
+    <label>${esc(f.label)} ${f.secret ? (f.set ? `<span class="chip ok">saved</span>` : f.optional ? `<span class="chip">optional</span>` : `<span class="chip warn">not set</span>`) : ""}</label>
+    <div class="row">${draftInput(id, { value: f.secret ? "" : f.value, multiline: f.multiline, secret: f.secret, placeholder })}
+      <button onclick='saveField(${L}, ${i})' ${id in state.drafts ? "class='primary'" : ""}>Save</button></div>
+    ${f.help ? `<div class="muted">${esc(f.help)}</div>` : ""}
+  </div>`;
+}
+
+function checkRow(tab, c, i) {
+  const L = esc(JSON.stringify(tab.lane)), id = draftId(tab.lane, "check", i);
+  let buttons;
+  if (c.action === "paste") {
+    buttons = c.done && !state.replacing[id] ? `<span class="muted">saved</span><button onclick='replaceCheck(${L}, ${i})'>Replace</button>`
+      : `${draftInput(id, { secret: true, placeholder: "Paste here" })}<button class="primary" onclick='saveCheck(${L}, ${i})'>Save</button>`;
+  } else {
+    buttons = `<button class="${c.done || c.job ? "" : "primary"}" onclick='openSetup(${L}, ${i})'>Open ${c.action}</button>`
+      + (c.command ? `<button onclick='copyCommand(${L}, ${i})'>${state.copied === id ? "Copied ✓" : "Copy command"}</button>` : "")
+      + (c.job ? `<button class="primary" onclick='runJob(${L}, ${i})'>${esc(c.job.label || "Run")}</button>` : "");
+  }
+  return `<div class="check ${c.done ? "done" : ""}">
+    <span class="mark">${c.done ? "✓" : i + 1}</span>
+    <div><div><strong>${esc(c.label)}</strong></div>${c.help && (!c.done || c.job) ? `<div class="muted">${esc(c.help)}</div>` : ""}</div>
+    <div class="row">${buttons}</div>
+  </div>`;
+}
+
+// The tab's own panel: its settings, then its setup checklist.
+// Fields grouped under their section headings. keep(f) picks which to show; indexes stay the tab's own.
+function fieldSections(tab, fields, keep, headings = true) {
+  const sections = [];
+  fields.forEach((f, i) => {
+    if (!keep(f)) return;
+    const name = headings ? f.section || "" : "";
+    let s = sections.find(s => s.name === name);
+    if (!s) sections.push(s = { name, rows: [] });
+    s.rows.push(fieldRow(tab, f, i));
+  });
+  return sections.map(s => `${s.name ? `<h3>${esc(s.name)}</h3>` : ""}<div class="fields">${s.rows.join("")}</div>`).join("");
+}
+
+// The tab's own panel: its actions, its settings, then its setup checklist. Values
+// marked "settings" show here only until they're set; after that they live in Settings.
+function accountPanel(tab) {
+  const fresh = x => !x.settings || !(x.set || x.done);
+  const checks = tab.setup.map((c, i) => [c, i]).filter(([c]) => fresh(c));
+  if (!tab.fields.length && !checks.length && !tab.actions.length) return "";
+  const left = tab.setup.filter(c => !c.done).length;
+  return `<section class="panel">
+    <h2>${esc(tab.title)} ${left ? `<span class="chip warn">setup: ${left} left</span>` : ""}
+      <span class="grow"></span>${actionButtons(tab.lane, tab.actions)}</h2>
+    ${fieldSections(tab, tab.fields, fresh)}
+    ${checks.length ? `<h3>Setup</h3>
+      ${left ? `<p class="muted" style="margin-top:-4px">Nothing posts from this tab until these are done. This page updates on its own once they are.</p>` : ""}
+      <div class="checks">${checks.map(([c, i]) => checkRow(tab, c, i)).join("")}</div>` : ""}
+  </section>`;
+}
+
+// Each group of tokens/IDs folds away. Closed by default once everything in it is set;
+// what you open or close is remembered in this browser.
+state.groupOpen = {};
+try { state.groupOpen = JSON.parse(localStorage.getItem(PREF("groupOpen")) || "{}"); } catch {}
+function setGroupOpen(key, open) {
+  state.groupOpen[key] = open;
+  try { localStorage.setItem(PREF("groupOpen"), JSON.stringify(state.groupOpen)); } catch {}
+}
+function settingsGroup(key, title, items, body) {
+  const missing = items.some(x => !x.ok && !x.optional);
+  const open = state.groupOpen[key] ?? missing;
+  const chips = items.map(x => `<span class="chip ${x.ok ? "ok" : x.optional ? "" : "warn"}">${esc(x.label)} ${x.ok ? "✓" : x.optional ? "(optional)" : "not set"}</span>`).join("");
+  return `<details class="settings-group" ${open ? "open" : ""} ontoggle='setGroupOpen(${esc(JSON.stringify(key))}, this.open)'>
+    <summary><h2>${esc(title)}</h2>${chips}</summary>
+    <div class="group-body">${body}</div>
+  </details>`;
+}
+function settingsPanel() {
+  const d = state.dash, shared = { lane: SETTINGS };
+  const perTab = d.tabs.map(t => {
+    const checks = t.setup.map((c, i) => [c, i]).filter(([c]) => c.settings);
+    const fields = fieldSections(t, t.fields, f => f.settings, false);
+    if (!fields && !checks.length) return "";
+    const items = [...t.fields.filter(f => f.settings).map(f => ({ label: f.label, ok: f.set })),
+                   ...checks.map(([c]) => ({ label: c.label, ok: c.done }))];
+    return settingsGroup(t.lane, t.title, items, `${fields}
+      ${checks.length ? `<div class="checks" style="margin-top:12px">${checks.map(([c, i]) => checkRow(t, c, i)).join("")}</div>` : ""}`);
+  }).join("");
+  const sharedItems = d.settings.fields.map(f => ({ label: f.label, ok: f.set, optional: f.optional }));
+  return `<section class="panel">
+    <h2>Settings <span class="grow"></span>${actionButtons(SETTINGS, d.settings.actions)}</h2>
+    <p class="muted" style="margin-top:-6px">Tokens and IDs, once set. Saved values are never shown again; paste a new one to replace it.
+      Click a name to show or hide it.</p>
+    ${sharedItems.length ? settingsGroup("~shared", "Shared", sharedItems, fieldSections(shared, d.settings.fields, () => true)) : ""}
+    ${perTab}
+  </section>`;
+}
+
+// --- one schedule change for several accounts at once ---
+state.allSel = {};
+function allSchedules() { return (state.schedules || []).filter(s => tabList().some(t => t.lane === s.lane)); }
+const mostCommon = xs => { const n = {}; xs.forEach(x => n[x] = (n[x] || 0) + 1); return Object.keys(n).sort((a, b) => n[b] - n[a])[0]; };
+function scheduleAllPanel() {
+  const list = allSchedules();
+  if (!list.length) return "";
+  const at = state.drafts["~all/at"] ?? mostCommon(list.map(s => s.at));
+  const count = state.drafts["~all/count"] ?? mostCommon(list.map(s => String(s.count)));
+  const picked = list.filter(s => state.allSel[s.lane] !== false);
+  const rows = list.map(s => {
+    const lane = state.lanes.find(l => l.name === s.lane) || {};
+    const status = lane.paused ? `<span class="chip warn">stopped</span>` : s.enabled ? `<span class="chip ok">scheduled</span>` : `<span class="chip bad">schedule off</span>`;
+    const title = (tabList().find(t => t.lane === s.lane) || {}).title || s.lane;
+    return `<label class="acct"><input type="checkbox" ${state.allSel[s.lane] !== false ? "checked" : ""}
+        onchange='state.allSel[${esc(JSON.stringify(s.lane))}] = this.checked; render()'>
+      <strong>${esc(title)}</strong><span class="muted">${esc(s.at)} · ${s.count} a night</span>${status}</label>`;
+  }).join("");
+  return `<section class="panel">
+    <h2>Schedule for all accounts</h2>
+    <p class="muted" style="margin-top:-6px">Set the time and posts a night for every ticked account in one go. A schedule that's off or stopped stays that way.</p>
+    <div class="all-sched">${rows}</div>
+    <div class="row">
+      <label>Daily at <input type="time" value="${esc(at)}" data-draft="~all/at" oninput='state.drafts["~all/at"] = this.value'></label>
+      <label>Posts a night <input type="number" min="0" max="25" value="${esc(count)}" style="width:60px" data-draft="~all/count" oninput='state.drafts["~all/count"] = this.value'></label>
+      <button class="primary" onclick="saveAllSchedules()" ${picked.length ? "" : "disabled"}>Apply to ${picked.length} account${picked.length === 1 ? "" : "s"}</button>
+    </div>
+  </section>`;
+}
+function saveAllSchedules() {
+  const list = allSchedules().filter(s => state.allSel[s.lane] !== false);
+  const at = state.drafts["~all/at"] ?? mostCommon(allSchedules().map(s => s.at));
+  const count = +(state.drafts["~all/count"] ?? mostCommon(allSchedules().map(s => String(s.count))));
+  if (!/^\d{2}:\d{2}$/.test(at) || !(count >= 0 && count <= 25)) { state.error = "Pick a time, and 0 to 25 posts a night."; render(); return; }
+  const names = list.map(s => (tabList().find(t => t.lane === s.lane) || {}).title || s.lane).join(", ");
+  act(async () => {
+    // Same as each account's own Save: a stopped account keeps the schedule it goes back to on Resume.
+    for (const s of list) await api("PUT", `/v1/schedules/${encodeURIComponent(s.lane)}`, { ...s, at, count, enabled: s.enabled || !!s.enabled_before_pause });
+    delete state.drafts["~all/at"]; delete state.drafts["~all/count"];
+    for (const s of list) { delete state.drafts[draftId(s.lane, "sched", "at")]; delete state.drafts[draftId(s.lane, "sched", "count")]; }
+  }, `Post ${count} a night at ${at} for ${names}?`);
+}
+
+function renderTabs(list, tab) {
+  const nav = $("#tabs");
+  nav.hidden = list.length < 2;
+  nav.innerHTML = list.map(t => {
+    const blocked = state.dead.some(j => underLane(j, t.lane));
+    const badge = blocked ? `<span class="dot bad" title="needs attention"></span>` : !t.ready ? `<span class="dot" title="not set up yet"></span>` : "";
+    return `<button role="tab" aria-selected="${t.lane === tab.lane}" onclick='selectTab(${esc(JSON.stringify(t.lane))})'>${esc(t.title)}${badge}</button>`;
+  }).join("");
+}
+
+function render() {
+  const app = $("#app");
+  if (!state.loaded) { app.innerHTML = `<div class="empty">Loading…</div>`; return; }
+  const tab = currentTab();
+  if (tab) renderTabs(tabList(), tab); else $("#tabs").hidden = true;
+  const open = viewer.open;
+  // Jobs with a preview are posts; the rest (e.g. monthly token refreshes) are
+  // background jobs, hidden from "Posting now" unless toggled on.
+  const isPost = j => !!(j.payload && j.payload.preview);
+  const active = state.active.filter(j => inTab(j, tab));
+  const dead = state.dead.filter(j => inTab(j, tab));
+  const schedules = tab && tab.isSettings ? [] : state.schedules.filter(s => !tab || s.lane === tab.lane);
+  const background = active.filter(j => !isPost(j)).sort((a, b) => new Date(a.run_at) - new Date(b.run_at));
+  const shown = state.showBackground ? active : active.filter(j => isPost(j) || j.state === "running");
+  const soon = Date.now() + 3600e3; // posts released for later tonight stay out of the way until close
+  const running = shown.filter(j => j.state === "running");
+  const waiting = shown.filter(j => j.state === "queued" && (!isPost(j) || new Date(j.run_at) <= soon || j.last_error))
+    .sort((a, b) => new Date(a.run_at) - new Date(b.run_at));
+  const queueItem = j => item(j,
+    `<span class="chip${j.last_error ? " warn" : ""}">${j.last_error ? "retrying" : isPost(j) ? "up next" : "scheduled"} ${esc(fmtIn(new Date(j.run_at) - Date.now()))}</span>`
+      + (j.lane ? ` <button onclick="hold(${j.id})" title="Put it back in line for a later run">Hold back</button>` : ""),
+    (isPost(j) ? "" : ` · ${esc(fmtWhen(j.run_at))}`) + (j.attempts ? ` · ${j.attempts} attempts so far` : ""));
+  const posted = state.history.filter(isPost);
+  const progressTop = hooks.top.map(f => f(tab) || "").join("");
+  const progressEnd = hooks.bottom.map(f => f(tab) || "").join("");
+  const isAccount = tab && !tab.isSettings && !tab.isLog && tab.account;
+
+  if (tab && tab.isLog) {
+    keepScroll(() => app.innerHTML = `${state.error ? `<div class="banner">${esc(state.error)}</div>` : ""}${logsPanel()}`);
+    return;
+  }
+  keepScroll(() => app.innerHTML = `
+    ${state.error ? `<div class="banner">${esc(state.error)}</div>` : ""}
+    ${dead.length ? `<section class="panel">
+      <h2>Needs attention <span class="chip bad">${dead.length}</span></h2>
+      <p class="muted" style="margin-top:-6px">These failed and won't be retried on their own. Everything after them in the same lane waits, so posts never go up out of order.</p>
+      <div class="list">${dead.map(j => item(j, `<button class="primary" onclick="retry(${j.id})">Retry</button><button class="danger" onclick="skip(${j.id})">Skip</button>`, ` · ${j.attempts} attempts`)).join("")}</div>
+    </section>` : ""}
+    <div class="layout">
+      <div>
+        ${tab && !tab.isLog ? guidePanel() : ""}
+        ${progressTop}
+        ${tab && tab.isSettings ? scheduleAllPanel() + accountsPanel() + settingsPanel() + usagePanel() + workerPanel() : tab ? accountPanel(tab) : ""}
+        ${isAccount ? addPostsPanel(tab) : ""}
+        ${schedules.length ? schedules.map(lanePanel).join("")
+          : tab && (!tab.ready || tab.isSettings) ? ""
+          : `<section class="panel"><div class="empty">${hooks.emptyText ? hooks.emptyText(tab)
+              : `Nothing queued for ${esc(tab ? tab.title : "this account")} yet. Add posts above; a nightly schedule is created, stopped, with the first one.`}</div></section>`}
+        ${progressEnd}
+      </div>
+      <div class="side">
+        <section class="panel">
+          <h2>Posting now
+            <span class="grow"></span>
+            ${background.length ? `<button class="toggle" aria-pressed="${!!state.showBackground}" onclick="toggleBackground()"
+                title="Jobs that aren't posts, like token refreshes">${state.showBackground ? "Hide" : "Show"} background jobs (${background.length})</button>` : ""}
+          </h2>
+          ${running.length || waiting.length ? `<div class="list">
+            ${running.map(j => item(j, `<span class="chip ok">running</span>`, ` · attempt ${j.attempts} on ${esc(j.worker)}`)).join("")}
+            ${waiting.map(queueItem).join("")}
+          </div>` : `<div class="empty">Nothing posting right now.</div>`}
+        </section>
+        <section class="panel">
+          <h2>Recently posted</h2>
+          ${posted.length ? `<div class="list">${posted.map(j => item(j,
+              j.result && j.result.permalink ? `<a href="${esc(j.result.permalink)}" target="_blank" rel="noopener">Open ↗</a>` : `<span class="chip">${esc((j.result && j.result.mode) || "done")}</span>`,
+              ` · ${esc(fmtWhen(j.finished_at))}`)).join("")}</div>` : `<div class="empty">Nothing yet.</div>`}
+        </section>
+      </div>
+    </div>`);
+  if (open && !viewer.open) viewer.showModal();
+}
+
+// No auto-refresh: the page loads once and redraws after your own changes (act() refreshes).
+// Reload the page to see anything new. Only the Log tab follows live output.
+</script>
+<script src="/plugin.js"></script>
+<script>refresh();</script>
+</body>
+</html>
