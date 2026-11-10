@@ -386,7 +386,11 @@ async function refresh() {
     await Promise.all(schedules.filter(s => !lane || s.lane === lane).map(async s => {
       held[s.lane] = await jobs({ lane: s.lane, state: "held", limit: s.next_count + (state.upcoming[s.lane] || UPCOMING_PAGE) });
     }));
-    const history = await jobs({ state: "succeeded", newest: "true", limit: 12, ...(lane ? { lane } : {}) });
+    // An account's history includes its sub-lanes (e.g. "<account>:reels"), newest first across all of them.
+    const histLanes = lane ? [...new Set([lane, ...lanes.map(l => l.name).filter(n => n.startsWith(lane + ":"))])] : [null];
+    const history = (await Promise.all(histLanes.map(l => jobs({ state: "succeeded", newest: "true", limit: 12, ...(l ? { lane: l } : {}) }))))
+      .flat().filter(j => !lane || j.lane === lane || (j.payload && j.payload.preview))  // posts only from sub-lanes, not imports or token refreshes
+      .sort((a, b) => new Date(b.finished_at || 0) - new Date(a.finished_at || 0)).slice(0, 12);
     const tab = currentTab();
     const workerLog = tab && tab.isSettings ? await api("GET", "/api/worker-log").catch(() => null) : null;
     const usage = tab && tab.isSettings ? await api("GET", "/api/stats").catch(() => null) : null;

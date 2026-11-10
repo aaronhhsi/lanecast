@@ -49,6 +49,12 @@ def uploaded(m):
     return path.read_bytes()
 
 
+def stage(job, n, text):
+    """Log a step, and save it on the job so dashboards can show how far posting got ("2/4 Uploading")."""
+    say(f"  {text}")
+    job.save(stage=n, stages=4, stage_text=text, stage_at=time.time())
+
+
 def run_publish(job, mode):
     payload = job.payload
     account = account_of(payload)
@@ -73,7 +79,7 @@ def run_publish(job, mode):
 
     work = Path(tempfile.mkdtemp(prefix="lanecast-post-"))
     try:
-        say(f"  preparing {name} for {account}")
+        stage(job, 1, f"preparing {name} for {account}")
         items = PLUGIN.prepare_media(job, work)
         if items is None:
             items = media.prepare(name, payload.get("media") or [], work, fetch=uploaded)
@@ -87,16 +93,16 @@ def run_publish(job, mode):
 
         container = ig_api.reuse_container(ig, job)
         if container:
-            say(f"  reusing Instagram container {container} from the last attempt")
+            stage(job, 3, f"reusing Instagram container {container} from the last attempt")
         else:
             for _, path in items:
                 if path.stat().st_size > 95 * 2**20:  # GitHub refuses files over 100 MB
                     raise Permanent(f"{path.name} is {path.stat().st_size >> 20} MB; too big for the outbox")
             outbox = ig_api.Outbox(work, store.config().get("outbox_repo") or PLUGIN.outbox_repo)
             try:
-                say(f"  uploading to the outbox ({outbox.repo}); Instagram downloads from there")
+                stage(job, 2, f"uploading to the outbox ({outbox.repo}); Instagram downloads from there")
                 urls = outbox.publish([path for _, path in items])
-                say("  uploaded; Instagram is fetching and processing the media")
+                stage(job, 3, "uploaded; Instagram is fetching and processing the media")
                 container = ig_api.contain(ig, items, urls, caption, job)
                 say(f"  container {container} ready")
             finally:
@@ -105,7 +111,7 @@ def run_publish(job, mode):
         if mode == "rehearse":
             return summary
 
-        say("  publishing")
+        stage(job, 4, "publishing")
         media_id, permalink = ig_api.publish(ig, container, job)
         PLUGIN.after_publish(job, permalink)
         return {**summary, "media_id": media_id, "permalink": permalink}
